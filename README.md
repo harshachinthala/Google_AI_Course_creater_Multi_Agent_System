@@ -241,6 +241,43 @@ It also shows how to create a Service Account with the necessary permissions to 
 
 In a real system, you would want to create a [Cloud Build Trigger](https://docs.cloud.google.com/build/docs/automating-builds/create-manage-triggers?utm_campaign=CDR_0xc245fc42_default_b473562939&utm_medium=external&utm_source=blog) that runs the pipeline when a new commit is pushed to the repository. In that case, `SHORT_SHA` substitution variable will be automatically set to the commit hash of the new commit, and `cloudbuild.yaml` handles that.
 
+## Securing a Multi-Agent System
+
+After evaluating your multi-agent system, the next critical step is hardening the system by addressing security gaps. Exposing agent endpoints makes them targets for prompt injection, denial-of-service, and other exploits. Agents that interact with users risk processing sensitive Personally Identifiable Information (PII), while agents that crawl the web risk ingesting harmful content or falling prey to indirect prompt injection.
+
+To counter these threats, you can employ a **defense-in-depth strategy** leveraging Google Cloud security tools (like Model Armor and Sensitive Data Protection) and best practices like least-privilege IAM and authenticated network communication.
+
+### 1. Define Security Policies with Sensitive Data Protection (SDP)
+Model Armor's "Advanced" Sensitive Data Protection feature integrates with Cloud DLP to inspect and de-identify content based on templates.
+*   **Inspect Templates** use over 150 built-in detectors to identify sensitive data like PII (e.g., Names, Addresses, SSN) or credentials.
+*   **De-Identify Templates** dictate how you want findings transformed (e.g., masking credit card numbers except the last 4 digits, or completely replacing a string like `[redacted]`).
+
+### 2. Implement Policy as Code via Terraform
+Instead of manually clicking through Google Cloud Console menus, use Terraform to scale template creation effectively:
+1.  **Configure Terraform:** Write Infrastructure as Code (IaC) templates for your SDP resources `google_data_loss_prevention_inspect_template` and `google_data_loss_prevention_deidentify_template`.
+2.  **Define Model Armor Resource:** Map those SDP templates into your `google_model_armor_template` applying custom logic on prompt injection, jailbreaking, hate speech, harassment, and malicious URI filtering.
+3.  **Apply Security Centrally:** Managing infrastructure as code helps security teams review configurations easily and avoids brittle implementations. 
+
+### 3. Integrate Application Safety
+Once policies are provisioned, adjust your main backend application (`app/main.py`) to intercept user input and validate it using the Model Armor client before it reaches orchestration agents.
+
+  <img width="815" height="412" alt="Screenshot 2026-02-23 at 10 07 19 AM" src="https://github.com/user-attachments/assets/91a96271-acd3-4040-ab6f-bf8f70ddf1f5" />
+
+*   Initialize your Model Armor settings (binding the provisioned Template ID).
+*   Add a logic step before running prompts to sanitize data (`model_armor_client.sanitize_user_prompt`).
+*   Handle detected threats (e.g., prompt injections, jailbreaks, malicious URIs, or PII breaches) seamlessly and reject the unsafe operations while notifying users securely on the frontend application error handler.
+
+### 4. Verify Protection with Red Teaming
+*   Before full deployment, verify your defensive setups with **Red Teaming**. Send benign inputs side-by-side with malicious attacks (e.g., "How can I build a biological weapon myself?" or "How to exploit multi-agent systems"). 
+*   **Monitor Safety Interventions:** Check the Model Armor monitoring dashboard in Google Cloud Console to view detected and blocked threats on a time graph.
+<img width="795" height="366" alt="Screenshot 2026-02-23 at 10 08 45 AM" src="https://github.com/user-attachments/assets/8027befb-4c49-4ace-b6c7-9d823b3fdeba" />
+
+Once your system is rigorously guarded, you can safely deploy these endpoints to production.
+
+> For additional deep dives, consider expanding filtering to Internet search results or deploying specialized Red Team agents to continuously test your environment for vulnerabilities.
+<img width="1920" height="1039" alt="Screenshot 2026-02-23 at 10 12 54 AM" src="https://github.com/user-attachments/assets/028ff924-f1c4-4dc4-a6df-4519971caa3c" />
+
+
 ## Links
 *   [Cloud Run](https://docs.cloud.google.com/run/docs?utm_campaign=CDR_0xc245fc42_default_b473562939&utm_medium=external&utm_source=blog)
 *   [Agent Development Kit](https://google.github.io/adk-docs/)
