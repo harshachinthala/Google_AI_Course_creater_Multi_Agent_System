@@ -16,6 +16,79 @@
   <img src="https://img.shields.io/badge/-Google_ADK-F4B400?style=for-the-badge&logo=googlecloud&logoColor=black" height="40" alt="Google ADK" />
 </p>
 
+# Introduction 
+
+In this I have build a distributed multi-agent system. While a single LLM can answer questions, real-world complexity often requires specialized roles. You don't ask your backend engineer to design the UI, and you don't ask your designer to optimize database queries. Similarly, we can create specialized AI agents that focus on one task and coordinate with each other to solve complex problems.
+
+**Live Demo** :  https://course-creator-prod-ready-3-845562525136.us-central1.run.app/
+
+I build a **Course Creation System** consisting of:
+*   **Researcher Agent:** Using google_search to find up-to-date information.
+*   **Judge Agent:** Critiquing the research for quality and completeness.
+*   **Content Builder Agent:** Turning the research into a structured course.
+*   **Orchestrator Agent:** Managing the workflow and communication between these specialists.
+
+
+### 🎯 What I did
+*   Define a tool-using agent (researcher) that can search the web.
+*   Implement structured output with Pydantic for the judge.
+*   Connect to remote agents using the Agent-to-Agent (A2A) protocol.
+*   Construct a `LoopAgent` to create a feedback loop between the researcher and judge.
+*   Run the distributed system locally using the ADK.
+*   Deploy the multi-agent system to Google Cloud Run.
+
+## 🏗️ Architecture & Orchestration Principles
+
+The System Design
+
+<img width="765" height="337" alt="Screenshot 2026-02-23 at 9 43 07 AM" src="https://github.com/user-attachments/assets/cc0f1e86-f44b-4dad-89a9-640aaddd92e4" />
+
+
+### Orchestrating with Agents
+Standard agents (like the Researcher) do work. Orchestrator Agents (like `LoopAgent` or `SequentialAgent`) manage other agents. They don't have their own tools; their "tool" is delegation.
+
+*   `LoopAgent`: This acts like a while loop in code. It runs a sequence of agents repeatedly until a condition is met (or max iterations reached). We use this for the **Research Loop**:
+      *    Researcher finds info.
+      *    Judge critiques it.
+      *    If Judge says "Fail", the EscalationChecker lets the loop continue.
+      *   If Judge says "Pass", the EscalationChecker breaks the loop.
+*   `SequentialAgent`: This acts like a standard script execution. It runs agents one after another. We use this for the **High-Level Pipeline**:
+      * First, run the Research Loop (until it finishes with good data).
+      * Then, run the Content Builder (to write the course).
+
+By combining these, we create a robust system that can self-correct before generating the final output.
+
+## Project Structure
+
+```
+multi-agent-eval/
+├── agents/                     # Source code for the agents
+│   ├── orchestrator/           # Main Orchestrator agent (ADK API Service)
+│   ├── researcher/             # Researcher agent (with Wikipedia Search Tool)
+│   ├── judge/                  # Judge agent (Quality Assurance)
+│   ├── content_builder/        # Content Builder agent (Writer)
+│   └── */model_armor_plugin.py # Model Armor protection applied to agents
+├── app/                        # Web App service application
+│   ├── frontend/               # Frontend application that uses Web App service API
+│   └── safety_util.py          # Safety utilities integrating Model Armor
+├── evaluator/                  # Evaluation Logic
+│   ├── evaluate_agent.py       # Main script to run Vertex AI evaluations
+│   ├── eval_data_*.json        # Golden Datasets for agents
+│   └── show_run.ipynb          # Notebook to visualize results
+├── shared/                     # Common libraries (symlinked to agents)
+│   ├── evaluation/                    # Shared evaluation logic (engine & metrics)
+│   ├── a2a_utils.py                   # Utilities for A2A Service-to-Service calls
+│   ├── adk_app.py                     # ADK application wrapper
+│   └── traced_authenticated_httpx.py  # Auth handling for Service-to-Service calls
+├── terraform/                  # Security Policy as Code (Model Armor & SDP)
+│   ├── apply.sh                # Script to apply terraform configuration
+│   ├── import.sh               # Script to import existing resources
+│   ├── main.tf                 # Main terraform configuration
+│   ├── outputs.tf              # Terraform outputs
+│   └── variables.tf            # Terraform variables
+├── deploy.sh                   # Deployment Automation Script
+└── evaluate.sh                 # CI/CD Entry point for Evaluation
+```
 
 # Evaluation of Multi-Agent Systems
 
@@ -36,30 +109,6 @@ The system uses a distributed microservices architecture where each agent runs i
 *   **Judge Service (`judge`):** A standalone agent that evaluates the quality and relevance of the research provided by the Researcher.
 *   **Content Builder Service (`content_builder`):** A standalone agent that compiles the verified information into a final comprehensive report or course.
 *   **Agent App (`app`):** A user-facing web application that talks to the Orchestrator, allowing users to trigger runs and view progress.
-
-## Project Structure
-
-```
-multi-agent-eval/
-├── agents/                     # Source code for the agents
-│   ├── orchestrator/           # Main Orchestrator agent (ADK API Service)
-│   ├── researcher/             # Researcher agent (with Wikipedia Search Tool)
-│   ├── judge/                  # Judge agent (Quality Assurance)
-│   └── content_builder/        # Content Builder agent (Writer)
-├── app/                        # Web App service application
-│   └── frontend/               # Frontend application that uses Web App service API
-├── evaluator/                  # Evaluation Logic
-│   ├── evaluate_agent.py       # Main script to run Vertex AI evaluations
-│   ├── eval_data_*.json        # Golden Datasets for agents
-│   └── show_run.ipynb          # Notebook to visualize results
-├── shared/                     # Common libraries (symlinked to agents)
-│   ├── evaluation/                    # Shared evaluation logic (engine & metrics)
-│   ├── a2a_utils.py                   # Utilities for A2A Service-to-Service calls
-│   ├── adk_app.py                     # ADK application wrapper
-│   └── traced_authenticated_httpx.py  # Auth handling for Service-to-Service calls
-├── deploy.sh                   # Deployment Automation Script
-└── evaluate.sh                 # CI/CD Entry point for Evaluation
-```
 
 ## Component Deep Dive
 
@@ -178,6 +227,9 @@ In a production system, the agent evaluation should be run as part of the CI/CD 
 2.  Run the evaluation (and probably your unit tests before that).
 3.  If the tests or the evaluation fail, the deployment will stop here.
 4.  If the tests and the evaluation pass, it will continue with promoting the revisions to serve 100% of traffic.
+
+ <img width="798" height="356" alt="Screenshot 2026-02-23 at 9 54 57 AM" src="https://github.com/user-attachments/assets/698cd36c-4aaa-4a3c-a8c8-6734be49b894" />
+
 
 [.cloudbuild/run_cloud_build.sh](./.cloudbuild/run_cloud_build.sh) is a example of a script that invokes the Cloud Build pipeline.
 It also shows how to create a Service Account with the necessary permissions to run the pipeline.
