@@ -23,7 +23,7 @@ In this I have build a distributed multi-agent system. While a single LLM can an
 **Live Demo** :  https://course-creator-prod-ready-3-845562525136.us-central1.run.app/
 
 I build a **Course Creation System** consisting of:
-*   **Researcher Agent:** Using google_search to find up-to-date information.
+*   **Researcher Agent:** Using Google Search/Wikipedia to find up-to-date information.
 *   **Judge Agent:** Critiquing the research for quality and completeness.
 *   **Content Builder Agent:** Turning the research into a structured course.
 *   **Orchestrator Agent:** Managing the workflow and communication between these specialists.
